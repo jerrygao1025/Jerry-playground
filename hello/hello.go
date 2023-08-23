@@ -2,6 +2,8 @@ package helloworld
 
 import (
 	"context"
+	"go.temporal.io/sdk/temporal"
+	"math/rand"
 	"time"
 
 	"go.temporal.io/sdk/activity"
@@ -14,6 +16,12 @@ import (
 func Workflow(ctx workflow.Context, name string) (string, error) {
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    time.Minute,
+			MaximumAttempts:    5,
+		},
 	}
 	ctx = workflow.WithActivityOptions(ctx, ao)
 
@@ -27,14 +35,21 @@ func Workflow(ctx workflow.Context, name string) (string, error) {
 		return "", err
 	}
 
-	logger.Info("HelloWorld workflow completed.", "result", result, "test", "jerry")
+	logger.Info("HelloWorld workflow completed.", "result", result)
 
 	return result, nil
 }
 
 func Activity(ctx context.Context, name string) (string, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("Activity", "name", name)
-	logger.Info("Attempts:", activity.GetInfo(ctx).Attempt)
+	rand := rand.Intn(100)
+	time.Sleep(3 * time.Second)
+	if rand <= 90 {
+		logger.Info("Activity failed...")
+		return "To retry", temporal.NewApplicationError("some retryable error", "SomeType")
+	}
+
+	logger.Info("Activity succeed!")
+	//logger.Info("Attempts:", activity.GetInfo(ctx).Attempt)
 	return "Hello " + name + "!", nil
 }
